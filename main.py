@@ -1,5 +1,5 @@
 from collections import UserDict
-
+from datetime import date
 
 def value_error_decorator(inner):
     def wraper(*args):
@@ -12,11 +12,33 @@ def value_error_decorator(inner):
 
 class Field:
     def __init__(self, value):
+        self._value = None
         self.value = value
 
-    def __str__(self):
-        return str(self.value)
+    @property
+    def value(self)->str:
+        return self._value
 
+    @value.setter
+    def value(self, value: str)-> None:
+        self._value = value
+
+    def __str__(self):
+        return str(self._value)
+
+class Birthday(Field):
+
+    @Field.value.setter
+    def value(self, value: str)-> None:
+        if value is None:
+            self._value = ''
+        else: 
+            try:       
+                day, month, year = value.split('.') 
+                birthday_date = date(year=int(year), month=int(month), day=int(day))
+                self._value = birthday_date
+            except ValueError:
+                raise ValueError('Date of birthday is not valid! (dd.mm.yyyy)')
 
 class Name(Field):
     def __init__(self, name):
@@ -34,9 +56,18 @@ class Phone(Field):
 
 
 class Record():
-    def __init__(self, name):
+    def __init__(self, name:str, phone:str=None, birthday:str=None):
         self.name = Name(name)
         self.phones = []
+
+        if phone is not None:
+            self.add_phone(phone)
+
+        if birthday is not None:
+            self.birthday = Birthday(birthday)
+        else:
+            self.birthday = Birthday(None)
+
 
     @value_error_decorator
     def add_phone(self, phone: str):
@@ -71,6 +102,20 @@ class Record():
             return ', '.join(str(x.phone) for x in self.phones)
         elif int(phone) in [x.phone for x in self.phones]:
             return Phone(phone)
+    
+    def add_birthday(self, birthday):
+        self.birthday = Birthday(birthday)
+
+    def days_to_birthday(self):
+        if self.birthday.value == '':
+            return None
+        today = date.today()
+        actual_birthday = self.birthday.value.replace(year=today.year)
+        if actual_birthday < today:
+            actual_birthday = self.birthday.value.replace(year=today.year+1)
+        time_to_birthday = abs(actual_birthday - today)
+
+        return time_to_birthday.days
 
     def __str__(self):
         return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
@@ -94,5 +139,60 @@ class AddressBook(UserDict):
                 self.data.pop(key)
                 break
 
+class AddressBook(UserDict):
+
+    iter_records = 5
+
+    def add_record(self, record: Record):
+        self.data[record.name.value] = record
+
+    def delete(self, name):
+        if name in self.data:
+            del self.data[name]
+
+    def find(self, name: str):
+        if name in self.data:
+            return self.data[name]
+        
+    def __iter__(self):
+        self.idx = 0
+        self.page = 0
+        self.list_of_records = [record for record in self.data]
+
+        return self
+
+    def __next__(self):
+
+        if self.idx >= len(self.data):
+            raise StopIteration
+        self.count_records = 1
+        self.page += 1
+        self.result = f'Page: {self.page}'
+
+        while self.count_records <= self.iter_records:
+            if self.idx >= len(self.data):
+                return self.result
+            
+            self.result += f'\n{self.data[self.list_of_records[self.idx]]}'
+            self.count_records += 1
+            self.idx += 1
+                
+        return self.result
+    
+    def set_iter_records(self, iter_records):
+        self.iter_records = iter_records
+
+        
+    def __str__(self):
+
+        if not self.data:
+            return 'The phone dictionary is empty'
+        else:
+            self.result = 'The phone dictionary has next contacts:'
+            for record in self.data:
+                self.result += f'\n{str(self.data[record])}'
+            self.result += '\n'
+
+            return self.result
 
 
